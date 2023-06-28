@@ -20,8 +20,8 @@ class ImageAugmentation:
                  augmented_labels_path: str,
                  augmented_images_with_bbox_path: str,
                  background_images_path: str,
-                 all_augmentations: bool = True,
-                 required_augmentations: list = []):
+                 image_format: str,
+                 required_augmentations: list = None):
 
         self.images_path = images_path
         self.labels_path = labels_path
@@ -29,41 +29,31 @@ class ImageAugmentation:
         self.augmented_labels_path = augmented_labels_path
         self.augmented_images_with_bbox_path = augmented_images_with_bbox_path
         self.background_images_path = background_images_path
-
-        # Criterion for choosing augmentations.
-        self.all_augmentations = all_augmentations
+        self.image_format = image_format
         self.required_augmentations = required_augmentations
-
-        if self.all_augmentations and self.required_augmentations:
-            raise ValueError("The value for the field 'all_augmentations' should be 'false' if input given for 'required_augmentations' field.")
-        elif not self.all_augmentations and not self.required_augmentations:
-            raise ValueError("Either the field 'all_augmentations' must be 'true' or input should be given for 'required_augmentations' field.")
 
         self.defined_augmentations = {
             # Pixel-level
-
-            # "ToGray": alb.ToGray(p=1),
-            # "Blur": alb.Blur(p=1),
-            # "MedianBlur": alb.MedianBlur(p=1),
-            # "MotionBlur": alb.MotionBlur(p=1),
-            # "ChannelDropout": alb.ChannelDropout(p=1),
-            # "ChannelShuffle": alb.ChannelShuffle(p=1),
-            # "RandomBrightness": alb.RandomBrightness(p=1),
-            # "RandomContrast": alb.RandomContrast(p=1),
+            "ToGray": alb.ToGray(p=1),
+            "Blur": alb.Blur(p=1),
+            "MedianBlur": alb.MedianBlur(p=1),
+            "MotionBlur": alb.MotionBlur(p=1),
+            "ChannelDropout": alb.ChannelDropout(p=1),
+            "ChannelShuffle": alb.ChannelShuffle(p=1),
+            "RandomBrightness": alb.RandomBrightness(p=1),
+            "RandomContrast": alb.RandomContrast(p=1),
             "HueSaturationValue": alb.HueSaturationValue(p=1),
             "MultiplicativeNoise": alb.MultiplicativeNoise(p=1),
             "RGBShift": alb.RGBShift(p=1),
             "RandomBrightnessContrast": alb.RandomBrightnessContrast(p=1),
-
             # Spatial-level
-
             "VerticalFlip": alb.VerticalFlip(p=1),
             "HorizontalFlip": alb.HorizontalFlip(p=1),
             "Rotate": alb.Rotate(limit=(-90, 90), interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT_101, p=1),
             "ShiftScaleRotate": alb.ShiftScaleRotate(p=1),
-            "RandomSizedCrop": alb.RandomSizedCrop(height=1080, width=1920, min_max_height=(1080, 1080), p=1),
-            "RandomResizedCrop": alb.RandomResizedCrop(height=1080, width=1920, p=1),
-            "RandomSizedBBoxSafeCrop": alb.RandomSizedBBoxSafeCrop(height=1080, width=1920, p=1),
+            "RandomSizedCrop": alb.RandomSizedCrop(height=1440, width=2048, min_max_height=(1080, 1080), p=1),
+            "RandomResizedCrop": alb.RandomResizedCrop(height=1440, width=2048, p=1),
+            "RandomSizedBBoxSafeCrop": alb.RandomSizedBBoxSafeCrop(height=1440, width=2048, p=1),
         }
 
         # Check if all input augmentations is present in our defined augmentations.
@@ -164,19 +154,19 @@ class ImageAugmentation:
 
         # Read directory
         dir_files = os.listdir(self.images_path)
-        required_files = [i for i in dir_files if i.endswith('.png')]
+        required_files = [i for i in dir_files if i.endswith(f'.{self.image_format}')]
 
         # Formulate chosen augmentations.
-        if self.all_augmentations:
-            chosen_augmentations = self.defined_augmentations.keys()
-        else:
+        if self.required_augmentations:
             chosen_augmentations = deepcopy(self.required_augmentations)
+        else:
+            chosen_augmentations = self.defined_augmentations.keys()
 
         # Loop through images and labels and perform chosen augmentations.
         for file_iter in required_files:
 
             image_path = os.path.join(self.images_path, file_iter)
-            label_path = os.path.join(self.images_path, file_iter.replace(".png", ".txt"))
+            label_path = os.path.join(self.images_path, file_iter.replace(f".{self.image_format}", ".txt"))
 
             # Loop through all required augmentations and perform each aug on the current image & label and save it.
             for augmentation_iter in chosen_augmentations:
@@ -204,7 +194,7 @@ class ImageAugmentation:
                     )
                     self._save_image(
                         image=transformed_image,
-                        image_name=final_file_name+".png",
+                        image_name=final_file_name+f".{self.image_format}",
                         save_path=self.augmented_images_path
                     )
 
@@ -219,7 +209,7 @@ class ImageAugmentation:
 
                         # Save augmented image with bboxes.
                         self._save_image(image=aug_img_with_bbox,
-                                         image_name="ref_"+final_file_name+".png",
+                                         image_name="ref_"+final_file_name+f".{self.image_format}",
                                          save_path=self.augmented_images_with_bbox_path)
 
                 # BACKGROUND IMAGES -> NO OBJECTS / NO BBOXES.
@@ -235,7 +225,7 @@ class ImageAugmentation:
 
                     self._save_image(
                         image=transformed_image,
-                        image_name=final_file_name+".png",
+                        image_name=final_file_name+f".{self.image_format}",
                         save_path=self.background_images_path
                     )
 
@@ -254,8 +244,8 @@ if __name__ == "__main__":
     parser.add_argument("--augmented_labels_path", type=str, help="Output augmented labels path.")
     parser.add_argument("--augmented_images_with_bbox_path", default="", type=str, help="[Optional] Path to augmented images with bbox for reference.")
     parser.add_argument("--background_images_path", type=str, help="Path to store background images.")
-    parser.add_argument("--all_augmentations", type=bool, default=True, help="Apply all augmentations or not.")
-    parser.add_argument("--required_augmentations", type=str, nargs="*", default=[], help="List of all required augmentations")
+    parser.add_argument("--image_format", type=str, help="Input and output image format.")
+    parser.add_argument("--required_augmentations", type=str, nargs="*", help="List of all required augmentations")
 
     # Read arguments from command line
     args = parser.parse_args()
@@ -275,7 +265,7 @@ if __name__ == "__main__":
         augmented_labels_path=args.augmented_labels_path,
         augmented_images_with_bbox_path=args.augmented_images_with_bbox_path,
         background_images_path=args.background_images_path,
-        all_augmentations=args.all_augmentations,
+        image_format=args.image_format,
         required_augmentations=args.required_augmentations
     )
 
@@ -283,24 +273,26 @@ if __name__ == "__main__":
 
     print(f"\n\nTotal time: {(datetime.now()-start_time).seconds} seconds")
 
-"""
-python albumentation_test.py \
---images_path /home/ram/data \
---labels_path /home/ram/data \
---augmented_images_path /home/ram/augmented \
---augmented_labels_path /home/ram/augmented \
---augmented_images_with_bbox_path /home/ram/augmented-bbox \
---background_images_path /home/ram/background_images \
---all_augmentations False \
---required_augmentations ToGray Blur
 
-python albumentation_test.py \
---images_path /home/ram/data \
---labels_path /home/ram/data \
---augmented_images_path /home/ram/augmented \
---augmented_labels_path /home/ram/augmented \
---augmented_images_with_bbox_path /home/ram/augmented-bbox \
---background_images_path /home/ram/background_images \
---all_augmentations True \
+# PERFORM CERTAIN AUGMENTATIONS
 
-"""
+# python albumentation_test.py \
+# --images_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\data \
+# --labels_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\data \
+# --augmented_images_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\augmented \
+# --augmented_labels_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\augmented \
+# --augmented_images_with_bbox_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\augmented_bbox \
+# --background_images_path C:\Users\ramdo\Documents\pycharm-projects\RemoteCam-test\src\POC11-augmentation\background \
+# --image_format JPG \
+# --required_augmentations ToGray Blur
+
+# PERFORM ALL AUGMENTATION
+
+# python albumentation_test.py \
+# --images_path /home/ram/data \
+# --labels_path /home/ram/data \
+# --augmented_images_path /home/ram/augmented \
+# --augmented_labels_path /home/ram/augmented \
+# --augmented_images_with_bbox_path /home/ram/augmented-bbox \
+# --background_images_path /home/ram/background_images \
+# --image_format png \
